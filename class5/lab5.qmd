@@ -1,0 +1,164 @@
+---
+title: "class05"
+author: "Meha Thakur (PID: A16020450)"
+format: pdf
+---
+
+## Quarto
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+Today we are playing with plotting and graphics in R- there are lots of ways to make cool figures! Base R has graphics such as (`plot()`,`hist()`, `boxplot()`, etc.)
+
+loading packages required in this lab
+```{r}
+#install.packages("ggplot2")
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+
+```
+
+
+Lets make a graph!
+```{r}
+head(cars)
+
+#using base R
+plot(cars)
+
+```
+
+```{r}
+head(mtcars)
+```
+lets plot mpg vs. disp
+
+```{r}
+#baseR
+plot(mtcars$mpg,mtcars$disp) 
+hist(mtcars$mpg)
+
+```
+
+##GGPLOT
+The main function in the ggplot2 package is the **ggplot()**. The library is loaded above using `library()`. This package was installed before. We never want to run  `install.packages()` in a quarto source doc as it will have to reinstall everytime you render. 
+
+```{r}
+
+ggplot(cars, aes(speed))+
+  geom_histogram()
+
+```
+
+Every ggplot needs at least 3 things: 
+
+- The **data** (given within the `gglot(cars)`)
+- The **aes** mapping - how the columns of the data map to the plot (given with `aes()`)
+- The **geom_** (given by `geom_point()` as an example)
+
+> For simple canned graphics, "base R" is nearly always quicker and faster. ggplot is much better for customising and tailoring for what you want. Your code is shorter in the long run.
+
+## Adding more layers to our previous plot
+```{r}
+
+ggplot(cars, aes(speed,dist))+
+  geom_point()+
+  geom_smooth(method="lm",se=F)+
+  labs(title="silly plot",
+       x="Speed (mph)",
+       y="Distance (ft)",
+       caption = "cars data!")+
+  theme_bw()
+
+
+```
+##plotting expression dta
+
+```{r}
+url <- "https://bioboot.github.io/bimm143_S20/class-material/up_down_expression.txt"
+genes <- read.delim(url)
+head(genes)
+
+ncol(genes)
+
+table(genes$State)
+
+127/nrow(genes)
+
+##making the plot (condition 1= x condition 2= y)
+
+ggplot(genes,aes(Condition1,Condition2, col = State))+
+  geom_point(size=2)+
+  scale_color_manual(values=c("purple","darkgrey","salmon"))+
+  labs(title = "Gene Expression upon Treatment",
+       x = "Control",
+       y = "Drug Addition")
+
+#if i want to add labels (this will be messy)
+ggplot(genes,aes(Condition1,Condition2, col = State,label=Gene))+
+  geom_point(size=2)+
+  scale_color_manual(values=c("purple","darkgrey","salmon"))+
+  labs(title = "Gene Expression upon Treatment",
+       x = "Control",
+       y = "Drug Addition")+
+  geom_text_repel(max.overlaps=100)+
+  theme_bw()
+
+
+```
+
+>Q1. How many genes are there?
+
+There are `r nrow(genes)` in this dataset
+
+>Q2. How many upregulated genes are there
+
+```{r}
+sum(genes$State == "up")
+table(genes$State)
+
+```
+
+##USING GAPMINDER DATASET
+
+```{r}
+url <- "https://raw.githubusercontent.com/jennybc/gapminder/master/inst/extdata/gapminder.tsv"
+
+gapminder <- read.delim(url)
+
+head(gapminder)
+tail(gapminder)
+
+#make plot of year (x) and GDP (y), divided by continent
+ggplot(gapminder, aes(gdpPercap, lifeExp,color=continent))+
+  geom_point(size=1,alpha=0.5)+
+  facet_wrap(~continent)
+
+```
+
+##exploring this data set on my own
+
+```{r}
+head(gapminder)
+#plotting how life expectancy changes  as gdp per capita changes, divided by year, colored according to continent, and sized according to population.
+
+ggplot(gapminder, aes(gdpPercap, lifeExp, color=continent, size=pop))+
+  geom_point(alpha=0.5)+
+  theme_bw()+
+  labs(title="Life Expectancy vs. GDP per Capita over the years",
+       x = "GDP per Capita",
+       y = "Life Expectancy")+
+  facet_wrap(~year)
+
+##add more graphs before submitting
+```
+
+
+
+
+
