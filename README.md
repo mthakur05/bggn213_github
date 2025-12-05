@@ -3,7 +3,7 @@ Class work for bioinformatics class [BGGN213 at UC San Diego](https://bioboot.gi
 
 ## Class Content
 - Class 4: [Bioinformatics data analysis with R]()
-- Class 5: [Data Visualisation with ggplot]()
+- Class 5: [Data Visualisation with ggplot](class5/lab5.md)
 - Class 6: [Writing Functions in R]()
 - Class 7: [Machine learning for bioninformatics 1]()
 - Class 8: [Unsupervised learning mini-project]()
