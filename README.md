@@ -14,7 +14,7 @@ Class work for bioinformatics class [BGGN213 at UC San Diego](https://bioboot.gi
 - Class 13: [RNA-Seq mini project](class13/lab13.md)
 - Class 15: [Essential UNIX for bioinformatics]()
 - Class 16: [Analyzing sequencing data in the cloud]()
-- CLass 18: [Investigating pertussis resurgence mini project](class18/lab18.md)
+- Class 18: [Investigating pertussis resurgence mini project](class18/lab18.md)
 
 
 
