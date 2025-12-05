@@ -1,7 +1,7 @@
 ---
 title: "class05"
 author: "Meha Thakur (PID: A16020450)"
-format: pdf
+format: gfm
 ---
 
 ## Quarto
