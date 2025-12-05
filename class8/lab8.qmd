@@ -1,0 +1,318 @@
+---
+title: "lab8-miniproject"
+author: "Meha Thakur (PID A16020450)"
+format: pdf
+toc: true
+---
+
+## Loading Packages
+```{r}
+library(ggplot2)
+library(dplyr)
+
+
+```
+## Data Import
+
+```{r}
+# Save your input data file into your Project directory
+fna.data <- "WisconsinCancer.csv"
+# Complete the following code to input the data and store as wisc.df
+wisc.df <- read.csv(fna.data, row.names=1)
+
+
+# We can use -1 here to remove the first column
+wisc.data <- wisc.df[,-1]
+head(wisc.data)
+# Create diagnosis vector for later -saved as a factor
+diagnosis <- factor(wisc.df$diagnosis)
+  
+```
+
+> Q1. How many observations are in this dataset?
+
+```{r}
+nrow(wisc.data)
+```
+ans:569
+
+
+> Q2. How many of the observations have a malignant diagnosis?
+
+```{r}
+sum(wisc.df$diagnosis=="M")
+
+```
+ans: there are 212 malignant observations
+
+> Q3. How many variables/features in the data are suffixed with _mean?
+
+```{r}
+
+sum(grepl("_mean$", names(wisc.df)))
+
+```
+There are 10 variables with the suffix _mean
+
+
+##  2.Principal component analysis (PCA)
+
+```{r}
+# Check column means and standard deviations
+colMeans(wisc.data)
+
+apply(wisc.data,2,sd)
+
+# Perform PCA on wisc.data by completing the following code
+wisc.pr <- prcomp(wisc.data, scale=T) #scale=T makes sure values are normalised
+summary(wisc.pr)
+
+```
+
+> Q4. From your results, what proportion of the original variance is captured by the first principal components (PC1)?
+
+ans: 0.4427
+
+> Q5. How many principal components (PCs) are required to describe at least 70% of the original variance in the data?
+
+
+
+```{r}
+
+
+var_wisc<-wisc.pr[["sdev"]]^2
+var_prop<-var_wisc/sum(var_wisc)
+
+cumulative_var<-cumsum(var_prop)
+which(cumulative_var>=0.7) [1]
+
+```
+ans: 3 components
+
+> Q6. How many principal components (PCs) are required to describe at least 90% of the original variance in the data?
+
+```{r}
+
+which(cumulative_var>=0.9) [1]
+
+```
+ans: 7 PCs
+
+
+result figure pc plot, or score plot
+```{r}
+ggplot(wisc.pr$x, aes(PC1,PC2,col=diagnosis))+
+    geom_point()
+
+```
+>Q7. What stands out to you about this plot? Is it easy or difficult to understand? Why?
+
+The benign and malignant groups are more or less separate from each other - so they have different clusters. This is relatively easy to understand as the colours make it easy to differentiate different groups. 
+
+> Q8. Generate a similar plot for principal components 1 and 3. What do you notice about these plots?
+
+```{r}
+ggplot(wisc.pr$x, aes(PC1,PC3,col=diagnosis))+
+    geom_point()
+
+```
+
+There appears to be more overlap between B and M groups when plotting PC1 and PC3, so they don't cluster as distinctly.
+
+## Variance Explained
+
+
+```{r}
+# Calculate variance of each component
+pr.var <- wisc.pr[["sdev"]]^2
+head(pr.var)
+
+# Variance explained by each principal component: pve
+pve <- pr.var / sum(pr.var)
+
+# Plot variance explained for each principal component
+plot(pve, xlab = "Principal Component", 
+     ylab = "Proportion of Variance Explained", 
+     ylim = c(0, 1), type = "o")
+
+# Alternative scree plot of the same data, note data driven y-axis
+barplot(pve, ylab = "Precent of Variance Explained",
+     names.arg=paste0("PC",1:length(pve)), las=2, axes = FALSE)
+axis(2, at=pve, labels=round(pve,2)*100 )
+
+
+
+```
+
+
+```{r}
+## ggplot based graph
+#install.packages("factoextra")
+#install.packages("ggpubr")
+#library(factoextra)
+#library(ggpubr)
+
+#fviz_eig(wisc.pr, addlabels = TRUE)
+
+#had problems downloading the package
+```
+>Q9. For the first principal component, what is the component of the loading vector (i.e. wisc.pr$rotation[,1]) for the feature concave.points_mean? This tells us how much this original feature contributes to the first PC.
+
+
+```{r}
+wisc.pr$rotation[,1]
+```
+## Hierarchical Clustering
+
+```{r}
+# Scale the wisc.data data using the "scale()" function
+data.scaled <- scale(wisc.data)
+data.dist <- dist(data.scaled)
+```
+
+> Q10. Using the plot() and abline() functions, what is the height at which the clustering model has 4 clusters.
+
+h=19 gives us 4 clusters.
+```{r}
+wisc.hclust <- hclust(data.dist, "complete")
+
+plot(wisc.hclust)
+abline(h=19, col="red", lty=2)
+
+```
+
+
+
+
+```{r}
+wisc.hclust.clusters <- cutree(wisc.hclust,h=19)
+table(wisc.hclust.clusters, diagnosis)
+
+```
+> Q11. OPTIONAL: Can you find a better cluster vs diagnoses match by cutting into a different number of clusters between 2 and 10? How do you judge the quality of your result in each case?
+
+```{r}
+
+
+
+```
+
+> Q12. Which method gives your favorite results for the same data.dist dataset? Explain your reasoning.
+
+ward.D2 is my favourite, as it has the most distinct and even looking clusters. The other methods are less balanced, starting all the way on one side and dividing from there. Because of this they are more crowded and it is much more difficult to visualise each cluster.
+
+```{r}
+
+wisc.pr.hclust2 <- hclust(data.dist, "ward.D2")
+plot(wisc.pr.hclust2)
+
+wisc.pr.single<-hclust(data.dist,method="single")
+plot(wisc.pr.single)
+
+wisc.pr.ave<-hclust(data.dist,method="average")
+plot(wisc.pr.ave)
+
+
+```
+
+
+Combining techniques
+
+> Q13. How well does the newly created model with four clusters separate out the two diagnoses?
+
+There are some weak clusters when comparing 4 vs. 2. However, it doesn't become more distinct. The actual data points remain very similar, however the groups have just become more specifically defined. So although there are more clusters in the 4 cluster graph, the actual diagnosis points cluster the same.
+
+```{r}
+#2 clusters using ward method
+grps <- cutree(wisc.pr.hclust2, h=70)
+table(grps)
+table(grps, diagnosis)
+
+plot(wisc.pr$x[,1:2], col=grps)
+plot(wisc.pr$x[,1:2], col=diagnosis)
+
+
+```
+```{r}
+
+# clusters
+grps1 <- cutree(wisc.pr.hclust2, h=32)
+table(grps1)
+table(grps1, diagnosis)
+
+plot(wisc.pr$x[,1:2], col=grps1) #colors indicate 4 groups
+plot(wisc.pr$x[,1:2], col=diagnosis) #2 diagnosis colours
+
+```
+
+
+```{r}
+## Use the distance along the first 7 PCs for clustering i.e. wisc.pr$x[, 1:7]
+
+wisc.pr.hclust <- hclust(dist(wisc.pr$x[, 1:7]), method="ward.D2")
+plot(wisc.pr.hclust)
+
+wisc.pr.hclust.clusters <- cutree(wisc.pr.hclust, h=70)
+table(wisc.pr.hclust.clusters,diagnosis)
+
+```
+> Q.13 How well does the newly created model with four clusters separate out the two diagnoses?
+
+My model uses 2 clusters, and it appears to seperate out the clusters quite well. The earlier model with 4 clusters (wisc.hclust.clusters) I used appears to separate out diagnoses differently - this makes sense as it is clustering into 4 groups rather than 2. That being said, I cannot say which is objectively better. 
+
+
+> Q14. How well do the hierarchical clustering models you created in previous sections (i.e. before PCA) do in terms of separating the diagnoses? Again, use the table() function to compare the output of each model (wisc.km$cluster and wisc.hclust.clusters) with the vector containing the actual diagnoses.
+
+The hierarchical clustering models appear to seperate out diagnoses, as seen by the table() function. From the dendrogram, however, it is difficult ot visualise how distinct these clusters are as we would be able to see in a PCA plot.
+
+```{r}
+
+table(wisc.hclust.clusters, diagnosis)
+
+
+```
+
+## Specificity vs. Sensitivity
+
+> Q15. OPTIONAL: Which of your analysis procedures resulted in a clustering model with the best specificity? How about sensitivity?
+
+Sensitivity = TP/(TP+FN)
+
+```{r}
+
+#clustering model before PCA
+table(wisc.hclust.clusters, diagnosis) #outputs
+
+
+```
+Sensitivity (mostly malignant) : True positive (TP) = 165 (malignant), False Negative (FN) = 12+2+0=14. False positives (FP)=40+5+2=47 
+```{r}
+#sensitivity
+165/(165+14)
+```
+For negatives (benign:) TN/(TN+FN)
+Specificity Cluster 3 (mostly benign): TN=343, FN = 12+2+0=14
+```{r}
+#specificity
+343/(343+14)
+```
+
+
+Clustering after PCA - combined method
+```{r}
+table(wisc.pr.hclust.clusters, diagnosis)
+
+```
+Sensitivity: TP=188, FN=28
+```{r}
+188/(188+28)
+```
+Specificity: TN=329, FN=28
+```{r}
+329/(329+28)
+```
+
+Clustering before PCA provides higher specificity and higher sensitivity than the combined method.
+
+
+

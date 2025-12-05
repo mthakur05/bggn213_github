@@ -1,0 +1,119 @@
+ssh -i ~/Downloads/meha.pem ubuntu@ec2-44-242-216-84.us-west-2.compute.amazonaws.com
+
+Want to interact with the SRA (sequence read archive):
+
+following commands
+
+# Download
+curl -O https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/current/sratoolkit.current-ubuntu64.tar.gz file ends in tar.gz (gz is zipped, tar is taped archive)
+
+
+# Unzip and Untar
+unzip: gzip -d sratooklit.... -- filename press TAB to autofill 
+untar: tar -xvf sratoolkit.current-ubuntu64.tar
+
+notice the bin directory -- binary
+
+navigate file system:
+  cd sratoolkit.3.2.1-ubuntu64/
+  ls
+  pwd
+  cd bin -- go into bin directory
+  ls -- there is LOTS of stuff in bin
+  ./ means in this folder -- 
+  
+  can save a string or path into a variable, eg. poo=/path, call using echo $poo
+  there is an inbuilt one called PATH
+  
+  call echo $PATH
+  
+  ls/ usr/bin -- lists out like everything basically
+  
+$ export PATH=$PATH:/home/ubuntu/sratoolkit.3.2.1-ubuntu64/bin --> setting a path to bin that can be called by PATH?
+-- need this to access the toolkit
+
+
+# DOwnload the data
+
+within sra toolkit (in your path for execeutables)
+
+prefetch SRR600956 -- accesses the thing
+
+fastq-dump SRR600956 -- gives us fastqs
+
+head SRR600956.fastq -- view the head of this 
+
+grep -c "@SRR600956" SRR600956.fastq --> each new read starts with the accession number. grep lets us see how many reads are in this (how many SRR...s are there)
+
+
+# Download more data
+fastq-dump --split-3 SRR2156852
+
+download more data
+prefetch SRR2156849 SRR2156850 SRR2156851
+fastq-dump --split-3 SRR2156849 SRR2156850 SRR2156851
+ls *.fastq --> list out the fast q files. notice that you will have pairs for each SRR file
+
+
+so we can now align everything to our reference genome - will do this next class
+- today doing pseudoalignment (Kallisto) - faster approach to RNA-seq data
+- use wget to download Kallisto from github - can do this for any source code
+
+wget https://github.com/pachterlab/kallisto/releases/download/v0.44.0/kallisto_linux-v0.44.0.tar.gz
+
+-- get a tar.gz file
+
+need to unzip using gzip -d
+need to untar using tar -xvf
+
+
+mv sratoolkit.3.2.1-ubuntu64/bin/*.fastq . --> move all specified files into current directory. you have to access it using path *. is just all ending in the following (in this case fastq)
+
+now need to add location to path using
+  export PATH=$PATH:/home/ubuntu/kallisto_linux-v0.44.0
+
+cd to get back to main directory
+
+next command: kallisto
+
+
+now we want to pull hg19 ensembl reference transcriptome:
+wget ftp://ftp.ensembl.org/pub/release-67/fasta/homo_sapiens/cdna/Homo_sapiens.GRCh37.67.cdna.all.fa.gz
+-- now we unzip (gzip -d)
+-- head - get an idea of what this looks like
+
+grep -c ">" Homo_sapiens.GRCh37.67.cdna.all.fa --> tells us how many entries
+
+i want to build my index for humans:
+
+kallisto index -i hg19.ensembl Homo_sapiens.GRCh37.67.cdna.all.fa 
+-- assigning it to name hg19.ensembl, aligning the Homo... file
+
+ls to go through the folder, have a bunch of fastq files. we can analyse it one by one, but we can also write a script and apply it to these files
+
+now we do nano and then name of script we are going to put our commands in
+  nano run_me.sh
+
+
+$ kallisto quant -i hg19.ensembl -o SRR2156848_quant SRR2156848_1.fastq SRR2156848_2.fastq
+-- do this for all the files
+chmod +x -- makes this an execeutable
+./run_me.sh
+
+add & to end of each line in run_me.sh to run this in the background.
+
+-- now we have quant files! 
+
+ls *_quant -- list out all the quant files
+- now we can download these files onto our own machines
+- tsv can be processed in R using DESeq etc.
+
+to do this, we use command scp (secure copy) in a NEW TERMINAL
+  scp -i keyfile ubuntu@hostaddress:~/*_
+  
+connect to instance first, then copy results back:
+  scp -i "~/Downloads/meha.pem" ubuntu@ec2-35-86-107-61.us-west-2.compute.amazonaws.com
+    
+copy back
+  scp -r -i "~/Downloads/meha.pem" ubuntu@ec2-35-86-107-61.us-west-2.compute.amazonaws.com:~/*_quant .
+  -- the space then . is VERY imporant DO NOT FORGET IT

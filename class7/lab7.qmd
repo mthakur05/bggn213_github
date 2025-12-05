@@ -1,0 +1,275 @@
+---
+title: "lab7: Machine Learning 1"
+author: "Meha Thakur PID A16020450"
+format: pdf
+toc: true
+---
+
+
+Today we will begin our exploration of some classical machine learning techniques/approaches in R. We will start with clustering!
+
+## K-means clustering
+
+Conceptually straightforward, input your data, tell them you want 'k' clusters, and it will give you that. Uses euclidian distances to some centroid. Iterates until it finds a good answer. 
+
+Make up some data to cluster 
+
+```{r}
+hist(rnorm(1000)) #1000 numbers with mean 0 (default), normal distribution. Draw a histogram to visualize this
+
+#want 30 points centered +3 to -3
+rnorm(30,-3) #30 points, mean -3
+rnorm(30,3) #30 points, mean +3
+
+x<-c(rnorm(30,-3),rnorm(30,3)) #60 points 
+y<- rev(x) #reverse of x
+
+x<- cbind(x,y) #column-bound data 
+
+plot(x) #visualise our data
+
+```
+
+The main function in "base R" for k-means clustering is `kmeans() `. Has 2 required arguments - data, centers. 
+```{r}
+k<-kmeans(x, centers=2) #in our initial plot looks like there should be 2 centers
+
+
+```
+
+>Q. how big are the clusters
+
+```{r}
+k$size
+```
+
+>Q. What clusters do my data points reside in?
+
+```{r}
+k$cluster
+```
+
+>Q. make a plot of our data coloured by cluster assignment (a result figure)
+
+```{r}
+#library(ggplot2)
+
+plot(x, col=k[["cluster"]]) #plot and colour by cluster
+points(k$centers,col="blue",pch=15) #plot the center as a square
+
+
+```
+>Q. ask for 4 centers this time
+
+```{r}
+four<- kmeans(x, centers=4) 
+
+plot(x,col=four[["cluster"]])
+points(four$centers,col="blue",pch=15) #plot the center as a square
+
+
+```
+
+> Q. run Kmeans with centers (i.e. values of k) equal 1-6. I want to store tot.withinss (metric for how good the clustering is) for each value 
+
+```{r}
+ss<-c() #initialise tot.withinss vector before we fill it in the loop
+
+for(i in 1:6){
+
+  
+  k_x<-kmeans(x,i)
+  k_plot<-plot(x,col=k_x[["cluster"]])
+  points(k_x$centers,col="blue",pch=15)
+  
+  ss[i]<- k_x$tot.withinss
+
+}
+
+  plot(ss,type="b") #tot.withinss plot 
+```
+
+
+## Hierarchiacal clustering*
+
+The main function in "base R" for this is called `hclust()`
+```{r}
+d<-dist(x) #gives individual distances between all data points
+hc<-hclust(d)
+hc
+
+plot(hc) #gives us a clustering tree (dendrogram)
+abline(h=7, col="red") 
+
+```
+To obtain clusters from our `hclust()` object, the result object *hc* we "cut" the tree to yield different sub-branches. For this we use the `cutree()` function.
+```{r}
+grps<-cutree(hc,h=7) #can specify height (cuts our tree at a certain height), this returns a clustering vector
+grps
+plot(x,col=grps)
+
+```
+
+```{r}
+#install.packages("pheatmap")
+library(pheatmap)
+
+pheatmap(x) #does the clustering for you
+
+```
+
+## Principal component analysis (PCA) using UK FOODS
+
+This technique projects features on to principal components. Aim is to reduces dimensionality while only losing a small amount of information. PCs are just low dimensional axes closest to the dimensions. Condensing all your variables (dimensions) into 2. We plot PC1 vs. PC2. PC1 captures most of the componenets, PC2 usually captures the rest. We will also get subseqeunt PCs but most of our data should be captured in PC1 and 2. Data is usually more spread along PC1 than PC2.
+
+```{r}
+#loading in data
+data<-read.csv("UK_foods.csv")
+
+#can also read directly from website:
+#url <- "https://tinyurl.com/UK-foods"
+#x <- read.csv(url)
+```
+
+>Q1. How many rows and columns are in your new data frame named x? What R functions could you use to answer this questions?
+
+```{r}
+dim(data)
+
+nrow(data)
+ncol(data)
+
+```
+There are 17 rows, 5 columns. 
+
+```{r}
+#preview first 6 rows
+head(data)
+
+```
+
+fix rownames so the first column is no longer considered a data column
+```{r}
+rownames(data) <- data[,1] #assign the first column as rownames that you will add to the df
+data <- data[,-1] #remove the first column of data (repeat of rownames)
+head(data) #preview
+
+```
+
+check dimensions again
+```{r}
+dim(data)
+```
+
+We could have also loaded in the data specifying the first column is rownames 
+```{r}
+data <- read.csv("UK_foods.csv", row.names=1)
+head(data)
+```
+
+
+>Q2. Which approach to solving the ‘row-names problem’ mentioned above do you prefer and why? Is one approach more robust than another under certain circumstances?
+
+I would prefer to use a direct call when I read in the file, specifying row.names=1. This minimizes chance of error and makes sure you aren't saving a version of the data that has duplicated values. For a very large data set that takes a while to load in, it may also take some time to run code to manipulate the data later to change rownames, remove a column etc.
+
+>Q3: Changing what optional argument in the above barplot() function results in the following plot?
+
+Change the beside argument to false.
+
+```{r}
+# Using base R - starting plot
+barplot(as.matrix(data), beside=T, col=rainbow(nrow(data)))
+
+barplot(as.matrix(data), beside=F, col=rainbow(nrow(data))) 
+
+```
+
+Use ggplot - need to convert to long format
+
+```{r}
+library(tidyr)
+library(ggplot2)
+dim(data) #wide format
+
+data_long<-data|>
+  tibble::rownames_to_column("Food")|>
+  pivot_longer(cols=-Food,
+               names_to="Country",
+               values_to="Consumption")
+
+
+```
+
+>Q4: Changing what optional argument in the above ggplot() code results in a stacked barplot figure?
+dodge--> stack
+
+```{r}
+#sample ggplot code
+ggplot(data_long) +
+  aes(x = Country, y = Consumption, fill = Food) +
+  geom_col(position = "dodge") +
+  theme_bw()
+
+
+#changed code
+ggplot(data_long) +
+  aes(x = Country, y = Consumption, fill = Food) +
+  geom_col(position = "stack") +
+  theme_bw()
+
+
+```
+
+
+>Q5: We can use the pairs() function to generate all pairwise plots for our countries. Can you make sense of the following code and resulting figure? What does it mean if a given point lies on the diagonal for a given plot?
+this plot allows you to see how each country's food correlates with another. For example, the plot immediately to the right of the England square, we can see how the diet of England matches up to the diet of Wales. So we can see how countries match up pairwise. Along the diagonal, it would be a self-match (eg. England vs. England). 
+
+```{r}
+pairs(data, col=rainbow(nrow(x)), pch=16)
+```
+
+The pairs approach only works with smaller data sets. With larger ones, we would want to use a heatmap.
+
+```{r}
+library(pheatmap)
+
+pheatmap( as.matrix(data) )
+
+```
+
+>Q6. Based on the pairs and heatmap figures, which countries cluster together and what does this suggest about their food consumption patterns? Can you easily tell what the main differences between N. Ireland and the other countries of the UK in terms of this data-set?
+It looks like Wales and England cluster together quite easily, seen by similar heatmap profile and pairwise correlation. Wales and N. Ireland differ the most, seen by their distance on the heatmap.
+
+This will be easier using PCA
+>Q7. Complete the code below to generate a plot of PC1 vs PC2. The second line adds text labels over the data points.
+
+The main function we use in "base R" for PCA is called `prcomp()`. We want data organised differently, as foods will need to be in the columns. So we take a transpose. 
+
+```{r}
+pca<-prcomp(t(data))
+summary(pca)
+
+
+```
+Our result object is called `pca` - this is a list object. To get the components of the output, we use` $x`
+```{r}
+pca$x #shows us where these countries lie on our new axis
+cols<-c("orange","red","blue","green")
+ggplot(pca$x,aes(x=PC1,y=PC2,label=rownames(pca$x)))+
+  geom_point(col=cols, size=10)+ #increase size of points to see them better
+  theme_bw()+
+  geom_text()
+
+
+```
+
+Another major result out of PCA is the so-called "variable loadings" or `$rotation`. This tells us how the original variables (in our case foods) contribute to the new axis.
+
+```{r}
+pca$rotation
+
+ggplot(pca$rotation,aes(PC1,rownames(pca$rotation)))+
+  geom_col()
+```
+
+

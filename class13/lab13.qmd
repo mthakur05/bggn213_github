@@ -1,0 +1,217 @@
+---
+title: "lab13"
+author: "Meha Thakur (PID 16020450)"
+format: pdf
+toc: TRUE
+---
+
+## Background
+
+Today we will run thorugh a complete RNASeq analysis.
+The data for for hands-on session comes from GEO entry: GSE37704, which is associated with the following publication:
+
+Trapnell C, Hendrickson DG, Sauvageau M, Goff L et al. "Differential analysis of gene regulation at transcript resolution with RNA-seq". Nat Biotechnol 2013 Jan;31(1):46-53. PMID: 23222703
+
+The authors report on differential analysis of lung fibroblasts in response to loss of the developmental transcription factor HOXA1. Their results and others indicate that HOXA1 is required for lung fibroblast and HeLa cell cycle progression. In particular their analysis show that "loss of HOXA1 results in significant expression level changes in thousands of individual transcripts, along with isoform switching events in key regulators of the cell cycle". For our session we have used their Sailfish gene-level estimated counts and hence are restricted to protein-coding genes only.
+
+## Data Import
+
+```{r}
+counts<-read.csv("GSE37704_featurecounts.csv",row.names=1)
+metadata<-read.csv("GSE37704_metadata.csv")
+```
+
+counts colnames dont match metadata rows
+```{r}
+head(counts)
+metadata
+```
+lets fix this
+```{r}
+colnames(counts)
+metadata$id
+```
+This length vector needs to go for them all to match
+
+are the colnames of counts = to rownames of metadata:
+```{r}
+testcols<-all(colnames(counts)[-1]==metadata$id)
+```
+
+test this
+```{r}
+if(testcols){
+  message("all good")
+}
+```
+
+remove that first col. in counts. Note that this line will override the original counts data so make sure to run this before any further analysis. DO NOT run this chunk multiple times without running the original one as it will keep cutting the dataframe.
+```{r}
+counts<-counts[,-1] #commented out so i dont touch it
+```
+lets also remove low count genes
+
+```{r}
+tot.counts<-rowSums(counts)
+head(tot.counts)
+
+```
+
+Remove all zero count genes
+```{r}
+zero.inds<- tot.counts==0
+head(zero.inds)
+
+counts<- counts[!zero.inds,] #overriding counts again
+```
+
+
+test again
+```{r}
+all(colnames(counts)==metadata$id)
+
+
+```
+
+
+## Setup for DESeq
+
+```{r}
+library(DESeq2)
+dds<-DESeqDataSetFromMatrix(countData=counts,
+                            colData = metadata,
+                            design= ~condition)
+```
+
+## RUn DESeq
+
+```{r}
+dds<-DESeq(dds)
+```
+
+
+## Get Results
+```{r}
+res<-results(dds)
+```
+
+```{r}
+head(res)
+```
+
+# Add annotation
+
+loading in libraries
+```{r}
+library(org.Hs.eg.db)
+library(AnnotationDbi)
+```
+
+```{r}
+res$symbol<-mapIds(org.Hs.eg.db,
+                   keys=row.names(res),
+                   keytype = "ENSEMBL",
+                   column = "SYMBOL")
+
+res$entrez<-mapIds(org.Hs.eg.db,
+                   keys=row.names(res),
+                   keytype = "ENSEMBL",
+                   column = "ENTREZID")
+
+head(res)
+```
+
+## Visualise results
+
+
+remove inf points
+```{r}
+head(res)
+
+```
+
+```{r}
+library(ggplot2)
+mycols <- rep("grey",nrow(res))
+mycols[res$log2FoldChange<=-2 & res$padj<0.05]<-"red"
+mycols[res$log2FoldChange>=2 & res$padj<0.05]<-"blue"
+
+ggplot(res, aes(log2FoldChange,-log(padj)))+
+  geom_point(col=mycols)+
+  geom_vline(xintercept=c(-2,2), color = "black", linetype = "dashed")+
+  geom_hline(yintercept = -log(0.05),color = "black", linetype = "dashed")+
+  ylim(c(0,800))
+
+#most people would remove those infinity points by truncating the axis.
+
+```
+
+
+
+## Pathway analysis
+
+```{r}
+library(pathview)
+library(gage)
+library(gageData)
+
+data(kegg.sets.hs)
+
+# Examine the first 2 pathways in this kegg set for humans
+head(kegg.sets.hs, 2)
+```
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges)<- res$entrez
+head(foldchanges)
+```
+run gage
+
+```{r}
+data(kegg.sets.hs)
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+results
+```{r}
+attributes(keggres)
+head(keggres$less,5) #top 5 pathways being annotated
+```
+get picture for DNA replication
+```{r}
+pathview(gene.data=foldchanges,pathway.id="hsa03030")
+```
+![DNA Replication from KEGG with my differentially expressed genes highlighted](hsa03030.pathview.png)
+
+## Pathway analysis with GO
+
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+# Focus on Biological Process subset of GO
+gobpsets <- go.sets.hs[go.subs.hs$BP]
+
+gobpres<- gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
+
+lapply(gobpres, head)
+```
+
+## Reactome
+
+some people really like reactome - their webpage viewer - rather than the R package with the same name (from bioconductor). To use the website viewer, we want to upload our set of gene symbols for ht egenes we want to focus on (here with a P-value < 0.05).
+
+```{r}
+sig_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+write.table(sig_genes, file="significant_genes.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+results
+
+![Reactome](R-HSA-68886.png)
+
+
+## Save results
+```{r}
+write.csv(res,"myresults_annotated.csv")
+```
+

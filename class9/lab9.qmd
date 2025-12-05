@@ -1,0 +1,326 @@
+---
+title: "lab9"
+author: "Meha Thakur PID 16020450"
+format: pdf
+toc: true
+---
+
+
+Reading in files and loading packages
+```{r}
+library(tidyverse)
+library(readr)
+
+data<- read.csv("Data Export Summary.csv", row.names=1)
+
+```
+
+
+```{r}
+#one way to change characters into numerics - annoying way
+num_data<- as.numeric(sub(",","",data$X.ray))
+
+#other way using readr to import data
+
+data1<-read_csv("Data Export Summary.csv")
+
+XrayT<-sum(data1$"X-ray")
+emT<- sum(data1$EM)
+total<-sum(data1$Total)
+
+round(XrayT/total *100,2) #x ray proportion
+round(emT/total*100,2) #EM proportion
+```
+
+>Q1: What percentage of structures in the PDB are solved by X-Ray and Electron Microscopy.
+
+ans: 81.43% X-ray, 12.27% EM
+
+>Q2: What proportion of structures in the PDB are protein?
+
+```{r}
+prot.total<-sum(data1$Total[1])
+
+round(prot.total/total*100,2)
+```
+
+ans: 86.05%
+
+plot the PDB database composition oct 2025. Want stacked barchart by number in each column. Want data in long format, 
+```{r}
+#regular bar chart
+ggplot(data1,aes(x=reorder(`Molecular Type`,-Total),y=Total,fill=`Molecular Type`))+
+  geom_col()+
+  labs(x="Molecular Type",y="Total", title = "PDB database composition Oct 2025")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#stacked bar chart -- NOT DONE
+
+#need to convert data into long format
+data_long <- data1 %>%
+  select(-Total)%>%
+  pivot_longer(
+    cols = where(is.numeric),
+    names_to = "Experimental Method",
+    values_to = "tot.val"
+  )
+
+ggplot(data_long,aes(x=reorder(`Molecular Type`,-tot.val),y=tot.val,fill=`Experimental Method`))+
+  geom_col(position="stack")+
+  labs(x="Molecular Type",y="Number of Structures", title = "PDB database Composition Oct 2025")+
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 35,hjust=1,vjust=1.2))
+  
+
+
+```
+
+
+>Q3: Type HIV in the PDB website search box on the home page and determine how many HIV-1 protease structures are in the current PDB?
+
+HIV search came up with 4886 structures.
+
+## Visualising structure data
+
+The Mol* Viewer is embeded in many bioinfo websites. Homepage is https://molstar.org/
+
+We can insert any figure/image file using markdown
+This is HIV Protease
+
+![](1HSG.png)
+
+>Q4: Water molecules normally have 3 atoms. Why do we see just one atom per water molecule in this structure?
+
+It would look too crowded to have each individual atom in the water molecule on this structure
+
+>Q5: There is a critical “conserved” water molecule in the binding site. Can you identify this water molecule? What residue number does this water molecule have
+
+Water 308, highlighted above as a red circle in the image below near the highlighted amino acids.
+
+
+>Q6: Generate and save a figure clearly showing the two distinct chains of HIV-protease along with the ligand. You might also consider showing the catalytic residues ASP 25 in each chain and the critical water (we recommend “Ball & Stick” for these side-chains). Add this figure to your Quarto document.
+Discussion Topic: Can you think of a way in which indinavir, or even larger ligands and substrates, could enter the binding site?
+
+![](1HSG_ann.png)
+
+## Bio3D package for structural informatics
+
+We can use the bio3d package to read and analuse biomolecular data in R:
+```{r}
+library(bio3d)
+
+#read in pdb file
+hiv<-read.pdb("1hsg")
+
+#preview atom
+head(hiv$atom)
+
+#sequence - chain A and B
+pdbseq(hiv)
+
+#trim to chain A
+chainA<-trim.pdb(hiv, chain='A')
+chainA.seq<-pdbseq(chainA)
+
+hiv
+
+```
+
+>Q7: How many amino acid residues are there in this pdb object? 
+
+198 residues
+
+>Q8: Name one of the two non-protein residues? 
+
+HOH, MK1
+
+>Q9: How many protein chains are in this structure? 
+
+2 chains
+
+Blast
+```{r}
+#blast<- blast.pdb(chainA.seq) commented out as I'm doing it below in cached results chunk
+
+
+```
+
+```{r blast_hiv, cache=TRUE}
+#when I render this, it will use the saved value and not have to rerun the blast code again 
+blast<- blast.pdb(chainA.seq)
+hits<-plot(blast)
+hits$pdb.id #gets all the accession numbers of those 249 hits
+```
+
+##Prediction of Functional Motions
+
+We can run Normal Mode Analysis (NMA) to predict large scale motions/flexibility/dynamics of any biomolecule that we can read into R.
+
+Lets look into ADK
+```{r}
+adk<-read.pdb("1ake")
+
+adk_A<-trim.pdb(adk, chain="A")
+adk_A
+
+```
+
+```{r}
+m<-nma(adk_A)
+plot(m)
+
+```
+
+Lets write out a "trajectory" of predicted motion
+
+```{r}
+mktrj(m,file="adk_nma.pdb")
+
+```
+
+## Play with 3D viewing in R
+
+We can use the new **bio3dview** package, which is not yet on CRAN, to render interactive 3D views in R and HTML quarto output reports. Need to install from GitHub. We can use the **pak** package. I am choosing to use **devtools** as is outlined on the lab walk through.
+```{r}
+library(BiocManager)
+library(devtools)
+library(bio3d)
+library(bio3d.view)
+library(msa)
+#library("Grantlab/bio3d-view")
+
+```
+
+>Q10. Which of the packages above is found only on BioConductor and not CRAN? 
+
+msa, as it installed using biocmanager
+
+>Q11. Which of the above packages is not found on BioConductor or CRAN?: 
+
+bio3d.view
+
+>Q12. True or False? Functions from the devtools package can be used to install packages from GitHub and BitBucket? 
+
+TRUE
+
+```{r}
+aa <- get.seq("1ake_A")
+
+aa
+```
+> Q13. How many amino acids are in this sequence, i.e. how long is this sequence?
+
+There are 214 amino acids in this sequence
+
+
+Commented out as document won't render.
+```{r}
+# Blast or hmmer search 
+#b <- blast.pdb(aa)
+
+```
+also commented out as above is not working
+```{r}
+# Plot a summary of search results
+#hits <- plot(b)
+# List out some 'top hits'
+#head(hits$pdb.id)
+```
+
+putting these into a vector
+```{r}
+hits <- c()
+hits$pdb.id <- c('1AKE_A','6S36_A','6RZE_A','3HPR_A','1E4V_A','5EJE_A','1E4Y_A','3X2S_A','6HAP_A','6HAM_A','4K46_A','3GMT_A','4PZL_A')
+
+```
+
+
+
+This chunk works, however will not render unless I comment out.
+```{r file}
+files <- get.pdb(hits$pdb.id, path="pdbs", split=TRUE, gzip=TRUE)
+```
+
+```{r}
+#| fig-width: 10
+#| fig-height: 8
+# Align releated PDBs
+pdbs <- pdbaln(files, fit = TRUE, exefile="msa")
+
+# Vector containing PDB codes for figure axis
+ids <- basename.pdb(pdbs$id)
+
+# Draw schematic alignment
+plot(pdbs, labels=ids)
+```
+annotating
+```{r}
+anno <- pdb.annotate(ids)
+unique(anno$source)
+
+anno
+```
+
+PCA
+
+```{r}
+# Perform PCA
+pc.xray <- pca(pdbs)
+plot(pc.xray)
+
+# Calculate RMSD
+rd <- rmsd(pdbs)
+
+# Structure-based clustering
+hc.rd <- hclust(dist(rd))
+grps.rd <- cutree(hc.rd, k=3)
+
+plot(pc.xray, 1:2, col="grey50", bg=grps.rd, pch=21, cex=1)
+```
+
+
+## 11/05 addition: Comparitive analysis 
+
+```{r}
+library (bio3d)
+
+id<-"1ake_A"
+
+aa<- get.seq(id)
+aa
+
+```
+```{r, cache=TRUE}
+blast<- blast.pdb(aa)
+hits<- plot(blast)
+```
+
+```{r}
+hits$pdb.id
+```
+
+Download all these "hits" that are similar to our starting ID sequence
+```{r}
+files<-get.pdb(hits$pdb.id, path="pdbs", split=TRUE, gzip=TRUE)
+```
+all the structures are jumbled up - need to align them
+
+```{r}
+pdbs<- pdbaln(files, fit=TRUE, exefile="msa")
+
+```
+output of this is quite big, lets use PCA to visualise it
+
+```{r}
+pc.xray<-pca(pdbs)
+plot(pc.xray,1:2)
+```
+```{r}
+mktrj(pc.xray, file="pca_results.pdb")
+```
+
+```{r}
+library(pak)
+view.pca(pc.xray)
+```
+

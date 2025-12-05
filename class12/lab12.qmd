@@ -1,0 +1,312 @@
+---
+title: "Lab12"
+author: "Meha Thakur (PID 16020450)"
+format: pdf
+toc: true
+---
+
+##Background
+
+RNA-seq: after all the alignments and whatnot the result is a **count matrix**. Columns are the experiments (+/- drug, KO, etc.)
+
+countData -> input for DESeq2
+colData-> tells you about the design of the experiment. Rows match columns from count data. Metadata folder.
+
+Today we will analyse some RNASeq data from Himes et al. on the effects of a commons teroid (dex) on airway smooth muscle cells (ASMs). For this analysis, we need two main inputs.
+
+1. countData: table of **counts** per gene (in rows) across experiments (in columns)
+2. colData: **metadata** about the design of the experiments. Rows here match columns in `countdata`
+
+loading libraries
+```{r, message = FALSE}
+library(BiocManager)
+library(DESeq2)
+library(ggplot2)
+library(dplyr)
+
+```
+
+##Data Import
+
+```{r}
+counts<-read.csv("airway_scaledcounts.csv",row.names=1)
+metadata<-read.csv("airway_metadata.csv")
+```
+
+Lets have a wee peak
+```{r}
+head(counts)
+head(metadata)
+```
+ENSG --> gene code. Each one corresponds
+SRR--> experiment details, explained in metadata file. geo_id 
+
+> Q1. How many "genes" are in this dataset
+
+```{r}
+nrow(counts)
+```
+There are 38694 genes in this dataset
+
+> Q2. How many experiments (i.e. columns in counts, or rows in metadata)
+
+```{r}
+ncol(counts)
+nrow(metadata)
+```
+8 experiments
+
+> Q3. How many "control" experiments are there
+
+```{r}
+sum(metadata$dex=="control")
+
+```
+4 control conditions
+
+## Toy analysis example
+
+**Step 1:** Extract the "control" columns from `counts`
+**Step 2:** Calculate the mean value for each gene in these "control" columns
+
+**Steps 3-4:** Do the same for the "treated" columns
+**Step 5:** Compare
+
+Step 1
+```{r}
+control.inds<-metadata$dex=="control" #use this to access the control the columns
+control.counts<-counts[ , control.inds] #making a control count matrix
+```
+
+Step 2
+```{r}
+control.mean<-rowMeans(control.counts)
+```
+
+Steps 3, 4
+```{r}
+treat.inds<-metadata$dex=="treated"
+treat.counts<-counts[,treat.inds]
+treat.mean<-rowMeans(treat.counts)
+```
+
+For ease of book-keeping, we can store these together in one df - `meancounts`
+```{r}
+meancounts<-data.frame(control.mean, treat.mean)
+head(meancounts)
+```
+Step 5: Compare 
+```{r}
+ggplot(meancounts,aes(control.mean,treat.mean))+
+  geom_point(alpha=0.2,col="darkgreen")
+
+```
+This does not look like 38000 data points
+
+Use log scale to account for the heavy skew.
+```{r}
+ggplot(meancounts,aes(control.mean,treat.mean))+
+  geom_point(alpha=0.2,col="darkgreen")+
+  scale_x_log10()+
+  scale_y_log10()
+```
+Points along the diagonal likely have no change - this is a heavy portion of the data. To account for this, we calculate "fold change" as a way to see differences. Generally for fold change we use log2 - Why? 
+
+```{r}
+#treated/control
+10/10
+log2(10/10) #log2 says that there is no change here. 
+log2(20/10) #expression increased with treatment
+log2(10/20) #expression decreased with treatment
+
+```
+
+```{r}
+#treated/control
+meancounts$log2fc<-log2(meancounts$treat.mean/
+                          meancounts$control.mean)
+head(meancounts)
+```
+NaN, -Inf - not a number, -infinity. 0/0 is not a number, so we can either add pseudocounts or just filter it out.
+
+A common rule-of-thumb for calling something upregulated is a log2FC > +2, downregulated log2FC < -2
+
+filter out zero
+```{r}
+#filter out zero count genes
+
+#nonzero.inds<-rowSums(counts!=0)
+#mycounts<-meancounts[nonzero.inds,]
+#nrow(mycounts)
+
+#OR
+zero.inds<-which(meancounts[,1:2] == 0,arr.ind=T)[,1]
+mygenes<-meancounts[-zero.inds,]
+head(mygenes)
+
+```
+
+> Q. how many genes are upregulated 
+
+```{r}
+sum(mygenes$log2fc>=2)
+```
+
+> Q. how many genes are downregulated
+
+```{r}
+sum(mygenes$log2fc <= -2)
+```
+
+This is good, however this has no statistical significance attached to it. We need to calculate that - can be done with DESeq
+
+##DESeq analysis
+
+```{r}
+dds<-DESeqDataSetFromMatrix(countData = counts,
+                            colData=metadata,
+                            design=~dex)
+
+```
+The main function in the DESeq package to run analysis is called `DESeq()`
+```{r}
+dds<-DESeq(dds)
+```
+
+results
+```{r}
+res<-results(dds)
+head(res)
+```
+
+baseMean- mean value across all columns
+log2FC - 
+pval - 
+padj - 5% of 36000 things is still a large number. So we adjust the pvalues to account for this - batch correction.
+
+```{r}
+36000*0.05
+```
+
+
+## Volcano plot
+
+This is a plot of log2FC vs. adjusted pval (padj)
+
+```{r}
+mycols <- rep("grey",nrow(res))
+mycols[res$log2FoldChange<=-2 & res$padj<0.05]<-"red"
+mycols[res$log2FoldChange>=2 & res$padj<0.05]<-"blue"
+
+ggplot(res, aes(log2FoldChange,-log(padj)))+
+  geom_point(col=mycols)+
+  geom_vline(xintercept=c(-2,2), color = "black", linetype = "dashed")+
+  geom_hline(yintercept = -log(0.05),color = "black", linetype = "dashed")
+
+
+
+
+#we take -log2FC
+
+
+```
+## Save our results
+
+```{r}
+write.csv(res,file="myresults.csv")
+```
+
+
+## Pathway analysis
+
+Trying to see if up/downregulated genes of interest are implicated in any pathways. Differentially expressed genes come from the experiment within the thresholds you set. 
+
+Try and generate KEGG pathway
+
+first need to add annotation data. use `mapIds()` function from bioconductor to map ENSG IDs to genes.
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+```
+
+org.Hs.eg.db is the organism (org) annotation package for HomoSapiens (Hs) for Entrez Gene IDs (eg), organised as a database package (db)
+
+
+prints out what database id formats we can translate between. We have ENSEMBL format, can translate to anything - we will choose SYMBOL for now.
+```{r}
+columns(org.Hs.eg.db) #all available key types
+```
+```{r}
+res$symbol<-mapIds(org.Hs.eg.db,
+                   keys = row.names(res), #gene names
+                   keytype = "ENSEMBL", #current format
+                   column = "SYMBOL") #what we want 
+
+head(res$symbol)
+```
+add `GENENAME` then `ENTREZID`
+```{r}
+res$genename<-mapIds(org.Hs.eg.db,
+                   keys = row.names(res), #gene names
+                   keytype = "ENSEMBL", #current format
+                   column = "GENENAME") #what we want 
+
+head(res$genename)
+```
+```{r}
+res$entrezid<-mapIds(org.Hs.eg.db,
+                   keys = row.names(res), #gene names
+                   keytype = "ENSEMBL", #current format
+                   column = "ENTREZID") #what we want 
+
+head(res$entrezid)
+```
+
+```{r}
+head(res)
+```
+save results
+```{r}
+write.csv(res, file = "myresults_annotated.csv")
+```
+
+
+```{r}
+library(pathview)
+library(gage)
+library(gageData)
+
+data(kegg.sets.hs)
+
+# Examine the first 2 pathways in this kegg set for humans
+head(kegg.sets.hs, 2)
+```
+**gage** wants an input that is a named vector of importance 
+See NA values - need to filter these out. Want names too.
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges)<- res$entrezid
+head(foldchanges)
+```
+
+now I can run gage analysis
+```{r}
+data(kegg.sets.hs)
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+what is in the results:
+```{r}
+attributes(keggres)
+head(keggres$less,5) #top 5 pathways being annotated
+```
+
+lets look at one of these hsa05310 Asthma
+```{r,message=FALSE}
+pathview(gene.data=foldchanges,pathway.id="hsa05310")
+```
+
+![Asthma pathway from KEGG with my differentially expressed genes highlighted](hsa05310.pathview.png)
+
+
+
