@@ -290,9 +290,12 @@ aa<- get.seq(id)
 aa
 
 ```
+
 ```{r, cache=TRUE}
-blast<- blast.pdb(aa)
-hits<- plot(blast)
+#blast<- blast.pdb(aa)
+#hits<- plot(blast)
+hits <- NULL
+hits$pdb.id <- c('1AKE_A','6S36_A','6RZE_A','3HPR_A','1E4V_A','5EJE_A','1E4Y_A','3X2S_A','6HAP_A','6HAM_A','4K46_A','3GMT_A','4PZL_A')
 ```
 
 ```{r}
@@ -320,7 +323,7 @@ mktrj(pc.xray, file="pca_results.pdb")
 ```
 
 ```{r}
-library(pak)
-view.pca(pc.xray)
+#library(pak)
+#view.pca(pc.xray)
 ```
 
